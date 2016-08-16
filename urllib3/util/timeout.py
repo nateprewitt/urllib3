@@ -23,7 +23,7 @@ class Timeout(object):
 
     Timeouts can be defined as a default for a pool::
 
-        timeout = Timeout(connect=2.0, read=7.0)
+        timeout = Timeout(connect=2.0, read=7.0, write=12.0)
         http = PoolManager(timeout=timeout)
         response = http.request('GET', 'http://example.com/')
 
@@ -33,15 +33,16 @@ class Timeout(object):
 
     Timeouts can be disabled by setting all the parameters to ``None``::
 
-        no_timeout = Timeout(connect=None, read=None)
+        no_timeout = Timeout(connect=None, read=None, write=None)
         response = http.request('GET', 'http://example.com/, timeout=no_timeout)
 
 
     :param total:
-        This combines the connect and read timeouts into one; the read timeout
-        will be set to the time leftover from the connect attempt. In the
-        event that both a connect timeout and a total are specified, or a read
-        timeout and a total are specified, the shorter timeout will be applied.
+        This combines the connect, read, and write timeouts into one; the read
+        timeout will be set to the time leftover from the connect attempt. In
+        the event that both a connect timeout and a total are specified, or a
+        read timeout and a total are specified, the shorter timeout will be
+        applied.
 
         Defaults to None.
 
@@ -66,6 +67,15 @@ class Timeout(object):
 
     :type read: integer, float, or None
 
+    :param write:
+        The maxium amount of time to wait for a connection to write data to
+        the server. Ommitting the parameter will default the write timeout to
+        the system default, probably `the global default timeout in socket.py
+        <http://hg.python.org/cpython/file/603b4d593758/Lib/socket.py#l535>`_.
+        None will set an infinite timeout for connection attempts.
+
+    :type write: integer, float, or None
+
     .. note::
 
         Many factors can affect the total amount of time for urllib3 to return
@@ -76,14 +86,14 @@ class Timeout(object):
         high CPU load, high swap, the program running at a low priority level,
         or other behaviors.
 
-        In addition, the read and total timeouts only measure the time between
-        read operations on the socket connecting the client and the server,
-        not the total amount of time for the request to return a complete
-        response. For most requests, the timeout is raised because the server
-        has not sent the first byte in the specified time. This is not always
-        the case; if a server streams one byte every fifteen seconds, a timeout
-        of 20 seconds will not trigger, even though the request will take
-        several minutes to complete.
+        In addition, the read, write and total timeouts only measure the time
+        between read operations on the socket connecting the client and the
+        server, not the total amount of time for the request to return a
+        complete response. For most requests, the timeout is raised because the
+        server has not sent the first byte in the specified time. This is not
+        always the case; if a server streams one byte every fifteen seconds, a
+        timeout of 20 seconds will not trigger, even though the request will
+        take several minutes to complete.
 
         If your goal is to cut off any request after a set amount of wall clock
         time, consider having a second "watcher" thread to cut off a slow
@@ -93,15 +103,17 @@ class Timeout(object):
     #: A sentinel object representing the default timeout value
     DEFAULT_TIMEOUT = _GLOBAL_DEFAULT_TIMEOUT
 
-    def __init__(self, total=None, connect=_Default, read=_Default):
+    def __init__(self, total=None, connect=_Default, read=_Default, write=_Default):
         self._connect = self._validate_timeout(connect, 'connect')
         self._read = self._validate_timeout(read, 'read')
+        self._write = self._validate_timeout(write, 'write')
         self.total = self._validate_timeout(total, 'total')
         self._start_connect = None
 
     def __str__(self):
-        return '%s(connect=%r, read=%r, total=%r)' % (
-            type(self).__name__, self._connect, self._read, self.total)
+        return '%s(connect=%r, read=%r, write=%r, total=%r)' % (
+            type(self).__name__, self._connect, self._read,
+            self._write, self.total)
 
     @classmethod
     def _validate_timeout(cls, value, name):
@@ -154,7 +166,7 @@ class Timeout(object):
         :return: Timeout object
         :rtype: :class:`Timeout`
         """
-        return Timeout(read=timeout, connect=timeout)
+        return Timeout(read=timeout, write=timeout, connect=timeout)
 
     def clone(self):
         """ Create a copy of the timeout object
@@ -169,7 +181,7 @@ class Timeout(object):
         # for _GLOBAL_DEFAULT_TIMEOUT, which socket.py uses as a sentinel to
         # detect the user default.
         return Timeout(connect=self._connect, read=self._read,
-                       total=self.total)
+                       write=self._write, total=self.total)
 
     def start_connect(self):
         """ Start the timeout clock, used during a connect() attempt
@@ -212,6 +224,36 @@ class Timeout(object):
             return self.total
 
         return min(self._connect, self.total)
+
+    @property
+    def write_timeout(self):
+        """ Get the value for the write timeout.
+
+        This assumes some time has elapsed in the connection timeout and
+        computes the write timeout appropriately.
+
+        If self.total is set, the write timeout is dependent on the amount of
+        time taken by the connect timeout. If the connection time has not been
+        established, a :exc:`~urllib3.exceptions.TimeoutStateError` will be
+        raised.
+
+        :return: Value to use for the write timeout.
+        :rtype: int, float, :attr:`Timeout.DEFAULT_TIMEOUT` or None
+        :raises urllib3.exceptions.TimeoutStateError: If :meth:`start_connect`
+            has not yet been called on this object.
+        """
+        if (self.total is not None and
+                self.total is not self.DEFAULT_TIMEOUT and
+                self._write is not None and
+                self._write is not self.DEFAULT_TIMEOUT):
+           if self._start_connect is None:
+               return self._write
+           return max(0, min(self.total-self.get_connect_duration(),
+                             self._write))
+        elif self.total is not None and self.total is not self.DEFAULT_TIMEOUT:
+            return max(0, self.total-self.get_connect_duration())
+        else:
+            return self._write
 
     @property
     def read_timeout(self):
