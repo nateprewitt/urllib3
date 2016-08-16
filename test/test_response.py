@@ -377,6 +377,46 @@ class TestResponse(unittest.TestCase):
 
         self.assertRaises(StopIteration, next, stream)
 
+    def test_length(self):
+        headers = {"content-length": "5"}
+
+        # Test no defined length
+        fp = BytesIO(b'12345')
+        resp = HTTPResponse(fp, preload_content=False)
+        assert resp.length == None
+
+        # Test content-length
+        resp = HTTPResponse(fp, headers=headers, preload_content=False)
+        assert resp.length == 5
+
+        # Test httplib-like length
+        resp = HTTPResponse(fp, preload_content=False)
+        resp._original_response = resp._fp
+        setattr(resp._original_response, 'length', 5)
+        assert resp.length == 5
+
+    def test_length_after_read(self):
+        headers = {"content-length": "5"}
+
+        # Test no defined length
+        fp = BytesIO(b'12345')
+        resp = HTTPResponse(fp, preload_content=False)
+        resp.read()
+        assert resp.length == None
+
+        # Test our update from content-length
+        fp = BytesIO(b'12345')
+        resp = HTTPResponse(fp, headers=headers, preload_content=False)
+        resp.read()
+        assert resp.length == 0
+
+        # Test partial read
+        fp = BytesIO(b'12345')
+        resp = HTTPResponse(fp, headers=headers, preload_content=False)
+        data = resp.stream(2)
+        next(data)
+        assert resp.length == 3
+
     def test_mock_httpresponse_stream(self):
         # Mock out a HTTP Request that does enough to make it through urllib3's
         # read() and close() calls, and also exhausts and underlying file
