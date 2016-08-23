@@ -7,7 +7,8 @@ from socket import error as SocketError
 
 from ._collections import HTTPHeaderDict
 from .exceptions import (
-    ProtocolError, DecodeError, ReadTimeoutError, ResponseNotChunked
+    ProtocolError, DecodeError, ReadTimeoutError,
+    ResponseNotChunked, IncompleteRead
 )
 from .packages.six import string_types as basestring, binary_type, PY3
 from .packages.six.moves import http_client as httplib
@@ -367,9 +368,7 @@ class HTTPResponse(io.IOBase):
                     self._fp.close()
                     flush_decoder = True
                     if (self.strict_content_length and self.length not in (0, None)):
-                        # httplib requires an iterator/string instead of count of bytes
-                        data = [0 for x in range(self._fp_bytes_read)]
-                        raise httplib.IncompleteRead(data, self.length)
+                        raise IncompleteRead(self._fp_bytes_read, self.length)
 
         if data:
             self._fp_bytes_read += len(data)
