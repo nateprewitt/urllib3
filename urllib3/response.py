@@ -105,7 +105,7 @@ class HTTPResponse(io.IOBase):
     def __init__(self, body='', headers=None, status=0, version=0, reason=None,
                  strict=0, preload_content=True, decode_content=True,
                  original_response=None, pool=None, connection=None,
-                 retries=None, strict_content_length=False):
+                 retries=None, strict_content_length=False, request_method=None):
 
         if isinstance(headers, HTTPHeaderDict):
             self.headers = headers
@@ -142,6 +142,9 @@ class HTTPResponse(io.IOBase):
         encodings = (enc.strip() for enc in tr_enc.split(","))
         if "chunked" in encodings:
             self.chunked = True
+
+        # Determine length of response
+        self.length = self._init_length(request_method)
 
         # If requested, preload the body.
         if preload_content and not self._body:
@@ -180,16 +183,6 @@ class HTTPResponse(io.IOBase):
     def connection(self):
         return self._connection
 
-    @property
-    def length(self):
-        length = getattr(self._original_response, 'length', None)
-        if length is not None:
-            return length
-        content_length = self.headers.get('content-length', None)
-        if content_length is not None:
-            return int(content_length) - self._fp_bytes_read
-        return None
-
     def tell(self):
         """
         Obtain the number of bytes pulled over the wire so far. May differ from
@@ -198,9 +191,39 @@ class HTTPResponse(io.IOBase):
         """
         return self._fp_bytes_read
 
+    def _init_length(self, request_method):
+        """
+        Set initial length value for Response content if available.
+        """
+        length = self.headers.get('content-length')
+        if length is not None and not self.chunked:
+            try:
+                length = int(length)
+            except ValueError:
+                length = None
+            else:
+                if length < 0:
+                    length = None
+        else:
+            length = None
+
+        # Convert status to int for comparison
+        # In some cases, httplib returns a status of "_UNKNOWN"
+        try:
+            status = int(self.status)
+        except:
+            status = 0
+
+        # Check for responses that shouldn't include a body
+        if (status in (204, 304) or 100 <= status < 200
+           or request_method == 'HEAD'):
+            length = 0
+
+        return length
+
     def _init_decoder(self):
         """
-        Set-up the _decoder attribute if necessar.
+        Set-up the _decoder attribute if necessary.
         """
         # Note: content-encoding value should be case-insensitive, per RFC 7230
         # Section 3.2
@@ -350,6 +373,8 @@ class HTTPResponse(io.IOBase):
 
         if data:
             self._fp_bytes_read += len(data)
+            if self.length is not None:
+                self.length -= len(data)
 
             data = self._decode(data, decode_content, flush_decoder)
 
