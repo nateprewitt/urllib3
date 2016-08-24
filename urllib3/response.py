@@ -145,7 +145,7 @@ class HTTPResponse(io.IOBase):
             self.chunked = True
 
         # Determine length of response
-        self.length = self._init_length(request_method)
+        self.length_remaining = self._init_length(request_method)
 
         # If requested, preload the body.
         if preload_content and not self._body:
@@ -367,13 +367,14 @@ class HTTPResponse(io.IOBase):
                     # no harm in redundantly calling close.
                     self._fp.close()
                     flush_decoder = True
-                    if (self.strict_content_length and self.length not in (0, None)):
-                        raise IncompleteRead(self._fp_bytes_read, self.length)
+                    if (self.strict_content_length and
+                       self.length_remaining not in (0, None)):
+                        raise IncompleteRead(self._fp_bytes_read, self.length_remaining)
 
         if data:
             self._fp_bytes_read += len(data)
-            if self.length is not None:
-                self.length -= len(data)
+            if self.length_remaining is not None:
+                self.length_remaining -= len(data)
 
             data = self._decode(data, decode_content, flush_decoder)
 

@@ -380,33 +380,36 @@ class TestResponse(unittest.TestCase):
     def test_length_no_header(self):
         fp = BytesIO(b'12345')
         resp = HTTPResponse(fp, preload_content=False)
-        assert resp.length is None
+        assert resp.length_remaining is None
 
     def test_length_w_valid_header(self):
         headers = {"content-length": "5"}
         fp = BytesIO(b'12345')
 
         resp = HTTPResponse(fp, headers=headers, preload_content=False)
-        assert resp.length == 5
+        assert resp.length_remaining == 5
 
     def test_length_w_bad_header(self):
         garbage = {'content-length': 'foo'}
         fp = BytesIO(b'12345')
 
         resp = HTTPResponse(fp, headers=garbage, preload_content=False)
-        assert resp.length is None
+        assert resp.length_remaining is None
 
         garbage['content-length'] = "-10"
         resp = HTTPResponse(fp, headers=garbage, preload_content=False)
-        assert resp.length is None
+        assert resp.length_remaining is None
 
     def test_length_when_chunked(self):
+        # This is expressly forbidden in RFC 7230 sec 3.3.2
+        # We fall back to chunked in this case and try to
+        # handle response ignoring content length.
         headers = {'content-length': '5',
                    'transfer-encoding': 'chunked'}
         fp = BytesIO(b'12345')
 
         resp = HTTPResponse(fp, headers=headers, preload_content=False)
-        assert resp.length is None
+        assert resp.length_remaining is None
 
     def test_length_after_read(self):
         headers = {"content-length": "5"}
@@ -415,20 +418,20 @@ class TestResponse(unittest.TestCase):
         fp = BytesIO(b'12345')
         resp = HTTPResponse(fp, preload_content=False)
         resp.read()
-        assert resp.length is None
+        assert resp.length_remaining is None
 
         # Test our update from content-length
         fp = BytesIO(b'12345')
         resp = HTTPResponse(fp, headers=headers, preload_content=False)
         resp.read()
-        assert resp.length == 0
+        assert resp.length_remaining == 0
 
         # Test partial read
         fp = BytesIO(b'12345')
         resp = HTTPResponse(fp, headers=headers, preload_content=False)
         data = resp.stream(2)
         next(data)
-        assert resp.length == 3
+        assert resp.length_remaining == 3
 
     def test_mock_httpresponse_stream(self):
         # Mock out a HTTP Request that does enough to make it through urllib3's
