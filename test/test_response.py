@@ -3,7 +3,9 @@ import unittest
 from io import BytesIO, BufferedReader
 
 from urllib3.response import HTTPResponse
-from urllib3.exceptions import DecodeError, ResponseNotChunked, ProtocolError
+from urllib3.exceptions import (
+    DecodeError, ResponseNotChunked, ProtocolError, InvalidHeader
+)
 from urllib3.packages.six.moves import http_client as httplib
 from urllib3.util.retry import Retry
 
@@ -410,6 +412,17 @@ class TestResponse(unittest.TestCase):
 
         resp = HTTPResponse(fp, headers=headers, preload_content=False)
         assert resp.length_remaining is None
+
+    def test_length_with_multiple_content_lengths(self):
+        headers = {'content-length': '5, 5, 5'}
+        garbage = {'content-length': '5, 42'}
+        fp = BytesIO(b'abcde')
+
+        resp = HTTPResponse(fp, headers=headers, preload_content=False)
+        assert resp.length_remaining == 5
+
+        self.assertRaises(InvalidHeader, HTTPResponse, fp,
+                          headers=garbage, preload_content=False)
 
     def test_length_after_read(self):
         headers = {"content-length": "5"}

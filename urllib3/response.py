@@ -8,12 +8,13 @@ from socket import error as SocketError
 from ._collections import HTTPHeaderDict
 from .exceptions import (
     ProtocolError, DecodeError, ReadTimeoutError,
-    ResponseNotChunked, IncompleteRead
+    ResponseNotChunked, IncompleteRead, InvalidHeader
 )
 from .packages.six import string_types as basestring, binary_type, PY3
 from .packages.six.moves import http_client as httplib
 from .connection import HTTPException, BaseSSLError
 from .util.response import is_fp_closed, is_response_to_head
+
 
 
 class DeflateDecoder(object):
@@ -199,7 +200,11 @@ class HTTPResponse(io.IOBase):
         length = self.headers.get('content-length')
         if length is not None and not self.chunked:
             try:
-                length = int(length)
+                lengths = set([int(val) for val in length.split(',')])
+                if len(lengths) > 1:
+                    raise InvalidHeader("Content-Length contained multiple "
+                                        "unmatching values (%s)" % length)
+                length = lengths.pop()
             except ValueError:
                 length = None
             else:

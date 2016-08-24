@@ -210,6 +210,11 @@ class IncompleteRead(httplib_IncompleteRead):
         httplib_IncompleteRead.__init__(self, message)
 
 
+class InvalidHeader(HTTPError):
+    "The header provided was somehow invalid."
+    pass
+
+
 class ProxySchemeUnknown(AssertionError, ValueError):
     "ProxyManager does not support the supplied scheme"
     # TODO(t-8ch): Stop inheriting from AssertionError in v2.0.
