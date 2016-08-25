@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from contextlib import contextmanager
 import zlib
 import io
+import logging
 from socket import timeout as SocketTimeout
 from socket import error as SocketError
 
@@ -15,6 +16,7 @@ from .packages.six.moves import http_client as httplib
 from .connection import HTTPException, BaseSSLError
 from .util.response import is_fp_closed, is_response_to_head
 
+log = logging.getLogger(__name__)
 
 
 class DeflateDecoder(object):
@@ -198,7 +200,19 @@ class HTTPResponse(io.IOBase):
         Set initial length value for Response content if available.
         """
         length = self.headers.get('content-length')
-        if length is not None and not self.chunked:
+
+        if length is not None and self.chunked:
+            # This Response will fail with an IncompleteRead if it can't be
+            # received as chunked. This method falls back to attempt reading
+            # the response before raising an exception.
+            log.warning("Received response with both Content-Length and "
+                        "Transfer-Encoding set. This is expressly forbidden "
+                        "by RFC 7230 sec 3.3.2. Ignoring Content-Length and "
+                        "attempting to process response as Transfer-Encoding: "
+                        "chunked.")
+            return None
+
+        if length is not None:
             try:
                 lengths = set([int(val) for val in length.split(',')])
                 if len(lengths) > 1:
@@ -210,8 +224,6 @@ class HTTPResponse(io.IOBase):
             else:
                 if length < 0:
                     length = None
-        else:
-            length = None
 
         # Convert status to int for comparison
         # In some cases, httplib returns a status of "_UNKNOWN"
