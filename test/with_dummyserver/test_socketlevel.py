@@ -1127,7 +1127,6 @@ class TestBadContentLength(SocketDummyServerTestCase):
                 b'Content-Length: 22\r\n'
                 b'Content-type: text/plain\r\n'
                 b'\r\n'
-                b'hello, world'
             )
             done_event.wait(1)
             sock.close()
