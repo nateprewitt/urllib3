@@ -196,7 +196,7 @@ class ResponseNotChunked(ProtocolError, ValueError):
     pass
 
 
-class IncompleteRead(httplib_IncompleteRead):
+class IncompleteRead(HTTPError, httplib_IncompleteRead):
     """
     Response length doesn't match expected Content-Length
 
