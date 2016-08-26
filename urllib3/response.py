@@ -391,6 +391,11 @@ class HTTPResponse(io.IOBase):
                     flush_decoder = True
                     if (self.strict_content_length and
                        self.length_remaining not in (0, None)):
+                        # This is an edge case that httplib failed to cover due
+                        # to concerns of backward compatibility. We're
+                        # addressing it here to make sure IncompleteRead is
+                        # raised during streaming, so all calls with incorrect
+                        # Content-Length are caught.
                         raise IncompleteRead(self._fp_bytes_read, self.length_remaining)
 
         if data:
