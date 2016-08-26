@@ -234,7 +234,7 @@ class HTTPResponse(io.IOBase):
         # In some cases, httplib returns a status of "_UNKNOWN"
         try:
             status = int(self.status)
-        except:
+        except ValueError:
             status = 0
 
         # Check for responses that shouldn't include a body
