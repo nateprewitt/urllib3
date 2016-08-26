@@ -214,6 +214,11 @@ class HTTPResponse(io.IOBase):
 
         if length is not None:
             try:
+                # RFC 7230 section 3.3.2 specifies multiple content lengths can
+                # be sent in a single Content-Length header
+                # (e.g. Content-Length: 42, 42). This line ensures the values
+                # are all valid ints and that as long as the `set` length is 1,
+                # all values are the same. Otherwise, the header is invalid.
                 lengths = set([int(val) for val in length.split(',')])
                 if len(lengths) > 1:
                     raise InvalidHeader("Content-Length contained multiple "
