@@ -83,19 +83,6 @@ def rewind_body(body, pos):
     :param pos:
         Position to seek to in file. An `object()` value
         is used to denote a failed `tell()`.
-
-    Example::
-
-        >>> import io
-        >>> body = io.BytesIO(b'test data')
-        >>>
-        >>> body.read()
-        b'test data'
-        >>> body.read()
-        b''
-        >>> rewind_body(body, 5)
-        >>> body.read()
-        b'data'
     """
     body_seek = getattr(body, 'seek', None)
     if body_seek is not None and isinstance(pos, integer_types):
