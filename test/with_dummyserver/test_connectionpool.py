@@ -29,6 +29,7 @@ from urllib3.exceptions import (
     ReadTimeoutError,
     ProtocolError,
     NewConnectionError,
+    UnrewindableBodyError,
 )
 from urllib3.packages.six import b, u
 from urllib3.packages.six.moves.urllib.parse import urlencode
@@ -685,7 +686,31 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             # the pool should still contain poolsize elements
             self.assertEqual(http.pool.qsize(), http.pool.maxsize)
 
+    def test_redirect_with_failed_tell(self):
+        class BadTellObject():
 
+            def __init__(self, data):
+                self.data = data
+
+            def read(self, amt):
+                outdata = self.data[:amt]
+                self.data = self.data[amt:]
+                return outdata
+
+            def tell(self):
+                raise IOError
+
+            def __len__(self):
+                return len(self.data)
+
+        body = BadTellObject(b'the data')
+        try:
+            resp = self.pool.urlopen('PUT',
+                                     '/redirect?target=/successful_retry',
+                                     body=body)
+            self.assertFail()  # we shouldn't reach this
+        except UnrewindableBodyError as e:
+            self.assertTrue('Unable to rewind request body' in str(e))
 
 
 class TestRetry(HTTPDummyServerTestCase):
