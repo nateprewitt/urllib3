@@ -449,7 +449,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
     def urlopen(self, method, url, body=None, headers=None, retries=None,
                 redirect=True, assert_same_host=True, timeout=_Default,
                 pool_timeout=None, release_conn=None, chunked=False,
-                **response_kw):
+                body_pos=None, **response_kw):
         """
         Get a connection from the pool and perform an HTTP request. This is the
         lowest level call for making a request, so you'll need to specify all
@@ -576,6 +576,17 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
         # ensures we do proper cleanup in finally.
         clean_exit = False
 
+        is_rewindable = (
+            getattr(body, 'tell', None) is not None  and
+            getattr(body, 'seek', None) is not None
+        )
+        # Make note of current file pointer position if available and
+        # not previously noted. If it's noted, set body to that position.
+        if is_rewindable and body_pos is None:
+            body_pos = body.tell()
+        elif is_rewindable:
+            body.seek(body_pos)
+
         try:
             # Request a connection from the queue.
             timeout_obj = self._get_timeout(timeout)
@@ -668,7 +679,8 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
             return self.urlopen(method, url, body, headers, retries,
                                 redirect, assert_same_host,
                                 timeout=timeout, pool_timeout=pool_timeout,
-                                release_conn=release_conn, **response_kw)
+                                release_conn=release_conn, body_pos=body_pos,
+                                **response_kw)
 
         # Handle redirect?
         redirect_location = redirect and response.get_redirect_location()
@@ -691,9 +703,10 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
             return self.urlopen(
                 method, redirect_location, body, headers,
                 retries=retries, redirect=redirect,
-                assert_same_host=assert_same_host,
-                timeout=timeout, pool_timeout=pool_timeout,
-                release_conn=release_conn, **response_kw)
+                assert_same_host=assert_same_host, timeout=timeout,
+                pool_timeout=pool_timeout,
+                release_conn=release_conn, body_pos=body_pos,
+                **response_kw)
 
         # Check if we should retry the HTTP response.
         has_retry_after = bool(response.getheader('Retry-After'))
@@ -714,7 +727,8 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
                 retries=retries, redirect=redirect,
                 assert_same_host=assert_same_host,
                 timeout=timeout, pool_timeout=pool_timeout,
-                release_conn=release_conn, **response_kw)
+                release_conn=release_conn,
+                body_pos=body_pos, **response_kw)
 
         return response
 
