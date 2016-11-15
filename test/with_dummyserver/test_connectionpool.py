@@ -41,6 +41,8 @@ from dummyserver.server import NoIPv6Warning, HAS_IPV6_AND_DNS
 
 from threading import Event
 
+from nose.plugins.skip import SkipTest
+
 log = logging.getLogger('urllib3.connectionpool')
 log.setLevel(logging.NOTSET)
 log.addHandler(logging.StreamHandler(sys.stdout))
@@ -686,16 +688,11 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             # the pool should still contain poolsize elements
             self.assertEqual(http.pool.qsize(), http.pool.maxsize)
 
-    def test_redirect_with_Bytes_Object(self):
-        #body = io.BytesIO(b'the data')
-        body = open(__file__, 'rb')
-        resp = self.pool.urlopen('PUT',
-                                 '/specific_method?method=PUT',
-                                 body=body)
-        body.close()
-        self.assertEqual(resp.status, 200)
-
     def test_redirect_with_failed_tell(self):
+
+        if getattr(self.pool, "manager", None) is not None:
+            raise SkipTest('Test won\'t work on GAE') 
+
         class BadTellObject():
 
             def __init__(self, data):
@@ -714,9 +711,11 @@ class TestConnectionPool(HTTPDummyServerTestCase):
 
         body = BadTellObject(b'the data')
         redir_url = '/redirect?target=/successful_retry'
+        if getattr(self.pool, 'manager', None) is not None:
+            self.fail("YOU ARE GAE!")
         try:
             resp = self.pool.urlopen('PUT', redir_url, body=body)
-            self.assertFail()  # we shouldn't reach this
+            self.fail()  # we shouldn't reach this
         except UnrewindableBodyError as e:
             self.assertTrue('Unable to rewind request body' in str(e))
 
