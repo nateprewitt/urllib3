@@ -691,7 +691,7 @@ class TestConnectionPool(HTTPDummyServerTestCase):
         body = open(__file__, 'rb')
         resp = self.pool.urlopen('PUT',
                                  '/specific_method?method=PUT',
-                                 headers={'content-length': '8'}, body=body)
+                                 body=body)
         body.close()
         self.assertEqual(resp.status, 200)
 
@@ -713,10 +713,9 @@ class TestConnectionPool(HTTPDummyServerTestCase):
                 return len(self.data)
 
         body = BadTellObject(b'the data')
+        redir_url = '/redirect?target=/successful_retry'
         try:
-            resp = self.pool.urlopen('PUT',
-                                     '/redirect?target=/successful_retry',
-                                     body=body)
+            resp = self.pool.urlopen('PUT', redir_url, body=body)
             self.assertFail()  # we shouldn't reach this
         except UnrewindableBodyError as e:
             self.assertTrue('Unable to rewind request body' in str(e))
