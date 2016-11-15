@@ -686,6 +686,15 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             # the pool should still contain poolsize elements
             self.assertEqual(http.pool.qsize(), http.pool.maxsize)
 
+    def test_redirect_with_Bytes_Object(self):
+
+        body = io.BytesIO(b'the data')
+        resp = self.pool.urlopen('PUT',
+                                 '/redirect?target=/successful_retry',
+                                 body=body)
+
+        self.assertEqual(resp.status, 200)
+
     def test_redirect_with_failed_tell(self):
         class BadTellObject():
 
