@@ -687,11 +687,10 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             self.assertEqual(http.pool.qsize(), http.pool.maxsize)
 
     def test_redirect_with_Bytes_Object(self):
-
         body = io.BytesIO(b'the data')
         resp = self.pool.urlopen('PUT',
-                                 '/redirect?target=/successful_retry',
-                                 body=body)
+                                 '/specific_method?method=PUT',
+                                 headers={'content-length': '8'}, body=body)
 
         self.assertEqual(resp.status, 200)
 
