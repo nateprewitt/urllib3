@@ -687,11 +687,12 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             self.assertEqual(http.pool.qsize(), http.pool.maxsize)
 
     def test_redirect_with_Bytes_Object(self):
-        body = io.BytesIO(b'the data')
+        #body = io.BytesIO(b'the data')
+        body = open(__file__, 'rb')
         resp = self.pool.urlopen('PUT',
                                  '/specific_method?method=PUT',
                                  headers={'content-length': '8'}, body=body)
-
+        body.close()
         self.assertEqual(resp.status, 200)
 
     def test_redirect_with_failed_tell(self):
