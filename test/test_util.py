@@ -1,6 +1,7 @@
 import hashlib
 import warnings
 import logging
+import io
 import unittest
 import ssl
 import socket
@@ -9,7 +10,7 @@ from itertools import chain
 from mock import patch, Mock
 
 from urllib3 import add_stderr_logger, disable_warnings
-from urllib3.util.request import make_headers
+from urllib3.util.request import make_headers, rewind_body
 from urllib3.util.retry import Retry
 from urllib3.util.timeout import Timeout
 from urllib3.util.url import (
@@ -31,6 +32,7 @@ from urllib3.exceptions import (
     SSLError,
     SNIMissingWarning,
     InvalidHeader,
+    UnrewindableBodyError,
 )
 from urllib3.util.connection import (
     allowed_gai_family,

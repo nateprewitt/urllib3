@@ -1,4 +1,5 @@
 import errno
+import io
 import logging
 import socket
 import sys
@@ -28,6 +29,7 @@ from urllib3.exceptions import (
     ReadTimeoutError,
     ProtocolError,
     NewConnectionError,
+    UnrewindableBodyError,
 )
 from urllib3.packages.six import b, u
 from urllib3.packages.six.moves.urllib.parse import urlencode
@@ -869,6 +871,40 @@ class TestRetryAfter(HTTPDummyServerTestCase):
         delta = time.time() - t
         self.assertEqual(r.status, 200)
         self.assertTrue(delta < 1)
+
+class TestRetryWithTimeout(HTTPDummyServerTestCase):
+    def setUp(self):
+        self.pool = HTTPConnectionPool(self.host, self.port, timeout=0.1)
+
+    def test_retries_put_filehandle(self):
+        """HTTP PUT retry with a file-like object should not timeout"""
+        retry = Retry(total=3, status_forcelist=[418])
+        # httplib reads in 8k chunks; use a larger content length
+        content_length = 32768
+        uploaded_file = io.BytesIO(b'A' * content_length)
+        headers = {'test-name': 'test_put_fileobj',
+                   'Content-Length': str(content_length)}
+        resp = self.pool.urlopen('PUT', '/successful_retry',
+                                 headers=headers,
+                                 retries=retry,
+                                 body=uploaded_file,
+                                 assert_same_host=False, redirect=False)
+        self.assertEqual(resp.status, 200)
+
+    def test_redirect_put_file(self):
+        '''PUT with file object should work with a redirection response'''
+        retry = Retry(total=3, status_forcelist=[418])
+        # httplib reads in 8k chunks; use a larger content length
+        content_length = 32768
+        uploaded_file = io.BytesIO(b'A' * content_length)
+        headers = {'test-name': 'test_redirect_put_fileobj_timeout',
+                   'Content-Length': str(content_length)}
+        resp = self.pool.urlopen('PUT', '/redirect?target=/successful_retry',
+                                 headers=headers,
+                                 retries=retry,
+                                 body=uploaded_file,
+                                 assert_same_host=False, redirect=True)
+        self.assertEqual(resp.status, 200)
 
 if __name__ == '__main__':
     unittest.main()
