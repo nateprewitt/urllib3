@@ -129,8 +129,26 @@ class Url(
         return uri
 
     @property
+    def authority(self) -> Optional[str]:
+        """
+        Network location including userinfo, host and port.
+
+        i.e.
+            userinfo@host:port
+        """
+        if self.netloc is None or self.auth is None:
+            return self.netloc
+        else:
+            return f"{self.auth}@{self.netloc}"
+
+    @property
     def netloc(self) -> Optional[str]:
-        """Network location including host and port"""
+        """
+        Network location including host and port.
+
+        If you need the equivalent of urllib.parse's ``netloc``,
+        use the ``authority`` property instead.
+        """
         if self.host is None:
             return None
         if self.port:
